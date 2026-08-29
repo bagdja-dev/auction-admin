@@ -9,6 +9,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { DepositTierEditor } from '@/components/deposit-tier-editor';
 import { NumberInput } from '@/components/number-input';
 import { LoadingSpinner } from '@/components/loading-spinner';
@@ -32,11 +39,22 @@ interface FormState {
   max_listing_days: string;
 }
 
+/**
+ * Daftar template renderer yang tersedia — HARUS sinkron manual dengan
+ * `components/templates/registry.ts` di repo `bagdja-auction-web` (renderer
+ * publik), karena keduanya repo terpisah. Tambah entry baru di sini begitu
+ * template baru didaftarkan di registry itu.
+ */
+const TEMPLATE_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: 'default', label: 'Default' },
+  { value: 'grand', label: 'Grand (Pinterest Masonry)' },
+];
+
 const EMPTY_FORM: FormState = {
   slug: '',
   name: '',
   domain: '',
-  template_id: '',
+  template_id: 'default',
   deposit_tiers: [],
   payment_due_hours: '',
   max_listing_days: '',
@@ -47,7 +65,7 @@ function marketToForm(market: Market): FormState {
     slug: market.slug ?? '',
     name: market.name ?? '',
     domain: market.domain ?? '',
-    template_id: market.template_id ?? '',
+    template_id: market.template_id ?? 'default',
     deposit_tiers: parseDepositTierConfig(market.deposit_tier_config),
     payment_due_hours: market.payment_due_hours != null ? String(market.payment_due_hours) : '',
     max_listing_days: market.max_listing_days != null ? String(market.max_listing_days) : '',
@@ -257,12 +275,21 @@ export default function MarketSettingsPage() {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="template_id">Template Renderer</Label>
-                <Input
-                  id="template_id"
+                <Select
                   value={form.template_id}
-                  onChange={(e) => updateField('template_id', e.target.value)}
-                  placeholder="ID template dari katalog"
-                />
+                  onValueChange={(value) => updateField('template_id', value)}
+                >
+                  <SelectTrigger id="template_id" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TEMPLATE_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="payment_due_hours">Batas Waktu Pelunasan (jam)</Label>
