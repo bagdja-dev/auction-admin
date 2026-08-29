@@ -51,3 +51,38 @@ export interface CreateMarketPayload {
 }
 
 export type UpdateMarketPayload = Partial<CreateMarketPayload>;
+
+export interface Seller {
+  id: string;
+  market_id: string;
+  user_id: string;
+  shop_name: string | null;
+  email: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ProductModeJual = 'AUCTION' | 'DIRECT_SELL';
+
+export type ProductStatus = 'draft' | 'published' | 'sold' | 'expired';
+
+export interface Product {
+  id: string;
+  market_id: string;
+  seller_id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  images: string[] | null;
+  mode_jual: ProductModeJual;
+  status: ProductStatus;
+  price: number;
+  min_increment: number | null;
+  auction_start_at: string | null;
+  auction_end_at: string | null;
+  stock: number;
+  re_listed_from_id: string | null;
+  created_at: string;
+  updated_at: string;
+}

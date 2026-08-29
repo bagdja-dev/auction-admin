@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Gavel, Settings, Users, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Gavel, Settings, Store, Users, X } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { useMarketContext } from '@/context/market-context';
@@ -17,6 +17,7 @@ interface SidebarProps {
 
 const NAV_ITEMS = [
   { href: '/dashboard/market-settings', label: 'Market Settings', icon: Settings, ownerOnly: false },
+  { href: '/dashboard/toko-produk', label: 'Toko & Produk', icon: Store, ownerOnly: false },
   { href: '/dashboard/staff', label: 'Staff', icon: Users, ownerOnly: true },
 ];
 
