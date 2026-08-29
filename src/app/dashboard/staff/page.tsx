@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -27,13 +28,39 @@ import {
 import { LoadingSpinner } from '@/components/loading-spinner';
 import { useMarketContext } from '@/context/market-context';
 import { ApiError, apiClient } from '@/lib/api-client';
-import type { MarketStaff } from '@/lib/types';
+import type { MarketStaff, MarketStaffInvitation } from '@/lib/types';
+
+const INVITATION_STATUS_LABEL: Record<MarketStaffInvitation['status'], string> = {
+  pending: 'Menunggu',
+  expired: 'Kedaluwarsa',
+  accepted: 'Diterima',
+};
+
+function InvitationStatusBadge({ status }: { status: MarketStaffInvitation['status'] }) {
+  if (status === 'accepted') {
+    return <Badge className="bg-brand-success text-white">{INVITATION_STATUS_LABEL[status]}</Badge>;
+  }
+  if (status === 'expired') {
+    return (
+      <Badge variant="outline" className="border-brand-error text-brand-error">
+        {INVITATION_STATUS_LABEL[status]}
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="outline" className="border-brand-info text-brand-info">
+      {INVITATION_STATUS_LABEL[status]}
+    </Badge>
+  );
+}
 
 export default function StaffPage() {
   const { activeMarket, isOwner, loading: marketLoading } = useMarketContext();
 
   const [staff, setStaff] = useState<MarketStaff[]>([]);
   const [staffLoading, setStaffLoading] = useState(false);
+  const [invitations, setInvitations] = useState<MarketStaffInvitation[]>([]);
+  const [invitationsLoading, setInvitationsLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [inviting, setInviting] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
@@ -55,9 +82,28 @@ export default function StaffPage() {
     }
   }, [activeMarket]);
 
+  const loadInvitations = useCallback(async () => {
+    if (!activeMarket) {
+      setInvitations([]);
+      return;
+    }
+    setInvitationsLoading(true);
+    try {
+      const data = await apiClient<MarketStaffInvitation[]>(
+        `/api/markets/${activeMarket.id}/staff/invitations`,
+      );
+      setInvitations(data);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Gagal memuat daftar undangan.');
+    } finally {
+      setInvitationsLoading(false);
+    }
+  }, [activeMarket]);
+
   useEffect(() => {
     void loadStaff();
-  }, [loadStaff]);
+    void loadInvitations();
+  }, [loadStaff, loadInvitations]);
 
   async function handleInvite(e: React.FormEvent) {
     e.preventDefault();
@@ -71,7 +117,7 @@ export default function StaffPage() {
       });
       toast.success(`Undangan terkirim ke ${email.trim()}.`);
       setEmail('');
-      await loadStaff();
+      await loadInvitations();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Gagal mengundang staff.');
     } finally {
@@ -191,6 +237,43 @@ export default function StaffPage() {
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Undangan Tertunda</CardTitle>
+          <CardDescription>Staff yang sudah diundang tapi belum (atau sudah) menerima undangan.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {invitationsLoading ? (
+            <LoadingSpinner />
+          ) : invitations.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Belum ada undangan yang dikirim.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Diundang</TableHead>
+                  <TableHead>Kedaluwarsa</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {invitations.map((invitation) => (
+                  <TableRow key={invitation.id}>
+                    <TableCell>{invitation.email}</TableCell>
+                    <TableCell>
+                      <InvitationStatusBadge status={invitation.status} />
+                    </TableCell>
+                    <TableCell>{new Date(invitation.created_at).toLocaleDateString('id-ID')}</TableCell>
+                    <TableCell>{new Date(invitation.expires_at).toLocaleDateString('id-ID')}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

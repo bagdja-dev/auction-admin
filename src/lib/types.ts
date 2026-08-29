@@ -30,6 +30,17 @@ export interface MarketStaff {
   created_at: string;
 }
 
+export type MarketStaffInvitationStatus = 'pending' | 'expired' | 'accepted';
+
+export interface MarketStaffInvitation {
+  id: string;
+  email: string;
+  status: MarketStaffInvitationStatus;
+  created_at: string;
+  expires_at: string;
+  accepted_at: string | null;
+}
+
 export interface CreateMarketPayload {
   slug: string;
   name: string;
