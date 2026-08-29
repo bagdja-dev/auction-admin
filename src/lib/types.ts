@@ -30,7 +30,7 @@ export interface MarketStaff {
   created_at: string;
 }
 
-export type MarketStaffInvitationStatus = 'pending' | 'expired' | 'accepted';
+export type MarketStaffInvitationStatus = 'pending' | 'expired';
 
 export interface MarketStaffInvitation {
   id: string;
@@ -38,7 +38,6 @@ export interface MarketStaffInvitation {
   status: MarketStaffInvitationStatus;
   created_at: string;
   expires_at: string;
-  accepted_at: string | null;
 }
 
 export interface CreateMarketPayload {
