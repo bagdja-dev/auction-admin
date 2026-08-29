@@ -33,13 +33,9 @@ import type { MarketStaff, MarketStaffInvitation } from '@/lib/types';
 const INVITATION_STATUS_LABEL: Record<MarketStaffInvitation['status'], string> = {
   pending: 'Menunggu',
   expired: 'Kedaluwarsa',
-  accepted: 'Diterima',
 };
 
 function InvitationStatusBadge({ status }: { status: MarketStaffInvitation['status'] }) {
-  if (status === 'accepted') {
-    return <Badge className="bg-brand-success text-white">{INVITATION_STATUS_LABEL[status]}</Badge>;
-  }
   if (status === 'expired') {
     return (
       <Badge variant="outline" className="border-brand-error text-brand-error">
@@ -248,7 +244,7 @@ export default function StaffPage() {
       <Card>
         <CardHeader>
           <CardTitle>Undangan Tertunda</CardTitle>
-          <CardDescription>Staff yang sudah diundang tapi belum (atau sudah) menerima undangan.</CardDescription>
+          <CardDescription>Staff yang sudah diundang tapi belum menerima undangan.</CardDescription>
         </CardHeader>
         <CardContent>
           {invitationsLoading ? (
