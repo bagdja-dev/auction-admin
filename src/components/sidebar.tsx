@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Gavel, Landmark, Settings, Store, Users, X } from 'lucide-react';
+import { Activity, ChevronLeft, ChevronRight, Gavel, Landmark, Settings, Store, Users, X } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { useMarketContext } from '@/context/market-context';
@@ -21,6 +21,15 @@ const NAV_ITEMS = [
   { href: '/dashboard/lelang', label: 'Lelang & Transaksi', icon: Landmark, ownerOnly: false },
   { href: '/dashboard/staff', label: 'Staff', icon: Users, ownerOnly: true },
 ];
+
+/**
+ * Panel antrian BullMQ (Bull Board) — dijalankan `bagdja-auction-api` sendiri
+ * di `/admin/queues` (dilindungi Basic Auth, reuse kredensial SWAGGER_USER/
+ * PASSWORD, lihat `main.ts`), BUKAN halaman Next.js — link eksternal biasa.
+ * Owner-only karena ini alat ops internal (retry/lihat/hapus job scheduler
+ * penutup lelang), bukan bagian workflow harian Staff.
+ */
+const QUEUES_PANEL_URL = `${process.env.NEXT_PUBLIC_API_URL ?? ''}/admin/queues`;
 
 export function Sidebar({ isOpen, onClose, collapsed, onToggleCollapsed }: SidebarProps) {
   const pathname = usePathname();
@@ -87,6 +96,24 @@ export function Sidebar({ isOpen, onClose, collapsed, onToggleCollapsed }: Sideb
             );
           })}
         </nav>
+
+        {isOwner && (
+          <div className="border-t border-sidebar-border px-3 py-3">
+            <a
+              href={QUEUES_PANEL_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={collapsed ? 'Panel Antrian (BullMQ)' : undefined}
+              className={cn(
+                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+                collapsed && 'lg:justify-center lg:px-2',
+              )}
+            >
+              <Activity className="h-4 w-4 shrink-0" />
+              <span className={cn(collapsed && 'lg:hidden')}>Panel Antrian (BullMQ)</span>
+            </a>
+          </div>
+        )}
 
         {/* Toggle collapse — cuma relevan di layar besar, drawer mobile selalu full-width */}
         <div className="hidden border-t border-sidebar-border p-3 lg:block">
