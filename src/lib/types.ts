@@ -15,6 +15,8 @@ export interface Market {
   max_listing_days: number | null;
   /** Menit sebelum lelang dimulai, pendaftaran peserta otomatis ditutup. `null` = tidak ada batas. */
   registration_deadline_minutes: number | null;
+  /** Kelipatan pembulatan nominal deposit hasil hitung persentase (dibulatkan ke terdekat). `null` = tidak dibulatkan. */
+  deposit_rounding_multiple: number | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -52,6 +54,8 @@ export interface CreateMarketPayload {
   max_listing_days?: number;
   /** Menit sebelum lelang dimulai, pendaftaran peserta otomatis ditutup. Kirim `null` eksplisit untuk menghapus batas. */
   registration_deadline_minutes?: number | null;
+  /** Kelipatan pembulatan nominal deposit. Kirim `null` eksplisit untuk menghapus (tidak dibulatkan). */
+  deposit_rounding_multiple?: number | null;
 }
 
 export type UpdateMarketPayload = Partial<CreateMarketPayload>;
@@ -102,7 +106,10 @@ export interface DepositTierConfig {
   market_id: string;
   min_price: number;
   max_price: number | null;
-  deposit_amount: number;
+  /** Persentase dari harga produk, 0-100. */
+  deposit_percentage: number;
+  min_deposit: number | null;
+  max_deposit: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -111,7 +118,9 @@ export interface DepositTierConfig {
 export interface DepositTierConfigPayload {
   min_price: number;
   max_price?: number | null;
-  deposit_amount: number;
+  deposit_percentage: number;
+  min_deposit?: number | null;
+  max_deposit?: number | null;
 }
 
 export interface Bid {

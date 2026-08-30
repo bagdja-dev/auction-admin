@@ -31,6 +31,7 @@ interface FormState {
   payment_due_hours: string;
   max_listing_days: string;
   registration_deadline_minutes: string;
+  deposit_rounding_multiple: string;
 }
 
 /**
@@ -52,6 +53,7 @@ const EMPTY_FORM: FormState = {
   payment_due_hours: '',
   max_listing_days: '',
   registration_deadline_minutes: '',
+  deposit_rounding_multiple: '',
 };
 
 function marketToForm(market: Market): FormState {
@@ -64,6 +66,8 @@ function marketToForm(market: Market): FormState {
     max_listing_days: market.max_listing_days != null ? String(market.max_listing_days) : '',
     registration_deadline_minutes:
       market.registration_deadline_minutes != null ? String(market.registration_deadline_minutes) : '',
+    deposit_rounding_multiple:
+      market.deposit_rounding_multiple != null ? String(market.deposit_rounding_multiple) : '',
   };
 }
 
@@ -79,6 +83,10 @@ function buildPayload(form: FormState): CreateMarketPayload {
     // memberitahu backend "hapus batas", bukan "biarkan tidak berubah".
     registration_deadline_minutes: form.registration_deadline_minutes.trim()
       ? Number(form.registration_deadline_minutes)
+      : null,
+    // Sama seperti registration_deadline_minutes — null eksplisit saat kosong.
+    deposit_rounding_multiple: form.deposit_rounding_multiple.trim()
+      ? Number(form.deposit_rounding_multiple)
       : null,
   };
 }
@@ -314,6 +322,19 @@ export default function MarketSettingsPage() {
                 <p className="text-xs text-muted-foreground">
                   Menit sebelum lelang dimulai, pendaftaran peserta otomatis ditutup. Kosongkan
                   untuk tidak membatasi.
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="deposit_rounding_multiple">Kelipatan Pembulatan Deposit</Label>
+                <NumberInput
+                  id="deposit_rounding_multiple"
+                  value={form.deposit_rounding_multiple}
+                  onChange={(raw) => updateField('deposit_rounding_multiple', raw)}
+                  placeholder="Kosongkan jika tidak dibulatkan"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Nominal deposit hasil hitung persentase dibulatkan ke kelipatan terdekat angka
+                  ini (mis. 10.000). Kosongkan untuk tidak dibulatkan.
                 </p>
               </div>
             </div>
