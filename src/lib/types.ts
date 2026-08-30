@@ -9,9 +9,12 @@ export interface Market {
   name: string;
   domain: string | null;
   template_id: string | null;
+  /** @deprecated Fase 3 mengganti dengan tabel relasional `deposit_tier_configs` (lihat `DepositTierConfig`). */
   deposit_tier_config: unknown;
   payment_due_hours: number | null;
   max_listing_days: number | null;
+  /** Menit sebelum lelang dimulai, pendaftaran peserta otomatis ditutup. `null` = tidak ada batas. */
+  registration_deadline_minutes: number | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -45,9 +48,10 @@ export interface CreateMarketPayload {
   name: string;
   domain?: string;
   template_id?: string;
-  deposit_tier_config?: unknown;
   payment_due_hours?: number;
   max_listing_days?: number;
+  /** Menit sebelum lelang dimulai, pendaftaran peserta otomatis ditutup. Kirim `null` eksplisit untuk menghapus batas. */
+  registration_deadline_minutes?: number | null;
 }
 
 export type UpdateMarketPayload = Partial<CreateMarketPayload>;
@@ -83,6 +87,37 @@ export interface Product {
   auction_end_at: string | null;
   stock: number;
   re_listed_from_id: string | null;
+  current_highest_bid: number | null;
+  highest_bidder_id: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/**
+ * Baris config deposit tier — tabel relasional `deposit_tier_configs`
+ * (Fase 3), menggantikan `Market.deposit_tier_config` (JSONB, deprecated).
+ */
+export interface DepositTierConfig {
+  id: string;
+  market_id: string;
+  min_price: number;
+  max_price: number | null;
+  deposit_amount: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Payload `PUT /api/markets/:marketId/deposit-tier-configs` — replace-all, bukan patch satu-satu. */
+export interface DepositTierConfigPayload {
+  min_price: number;
+  max_price?: number | null;
+  deposit_amount: number;
+}
+
+export interface Bid {
+  id: string;
+  product_id: string;
+  bidder_user_id: string;
+  amount: number;
+  created_at: string;
 }

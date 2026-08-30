@@ -16,17 +16,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { DepositTierEditor } from '@/components/deposit-tier-editor';
+import { DepositTierManager } from '@/components/deposit-tier-manager';
 import { NumberInput } from '@/components/number-input';
 import { LoadingSpinner } from '@/components/loading-spinner';
 import { useMarketContext } from '@/context/market-context';
 import { ApiError, apiClient, slugify } from '@/lib/api-client';
-import {
-  buildDepositTierConfig,
-  parseDepositTierConfig,
-  validateDepositTiers,
-  type DepositTierRow,
-} from '@/lib/deposit-tier';
 import type { CreateMarketPayload, Market } from '@/lib/types';
 
 interface FormState {
@@ -34,9 +28,9 @@ interface FormState {
   name: string;
   domain: string;
   template_id: string;
-  deposit_tiers: DepositTierRow[];
   payment_due_hours: string;
   max_listing_days: string;
+  registration_deadline_minutes: string;
 }
 
 /**
@@ -55,9 +49,9 @@ const EMPTY_FORM: FormState = {
   name: '',
   domain: '',
   template_id: 'default',
-  deposit_tiers: [],
   payment_due_hours: '',
   max_listing_days: '',
+  registration_deadline_minutes: '',
 };
 
 function marketToForm(market: Market): FormState {
@@ -66,26 +60,26 @@ function marketToForm(market: Market): FormState {
     name: market.name ?? '',
     domain: market.domain ?? '',
     template_id: market.template_id ?? 'default',
-    deposit_tiers: parseDepositTierConfig(market.deposit_tier_config),
     payment_due_hours: market.payment_due_hours != null ? String(market.payment_due_hours) : '',
     max_listing_days: market.max_listing_days != null ? String(market.max_listing_days) : '',
+    registration_deadline_minutes:
+      market.registration_deadline_minutes != null ? String(market.registration_deadline_minutes) : '',
   };
 }
 
 function buildPayload(form: FormState): CreateMarketPayload {
-  const tierError = validateDepositTiers(form.deposit_tiers);
-  if (tierError) {
-    throw new Error(tierError);
-  }
-
   return {
     slug: form.slug.trim(),
     name: form.name.trim(),
     domain: form.domain.trim() || undefined,
     template_id: form.template_id.trim() || undefined,
-    deposit_tier_config: buildDepositTierConfig(form.deposit_tiers),
     payment_due_hours: form.payment_due_hours.trim() ? Number(form.payment_due_hours) : undefined,
     max_listing_days: form.max_listing_days.trim() ? Number(form.max_listing_days) : undefined,
+    // Selalu dikirim (bukan `undefined` saat kosong) — `null` eksplisit
+    // memberitahu backend "hapus batas", bukan "biarkan tidak berubah".
+    registration_deadline_minutes: form.registration_deadline_minutes.trim()
+      ? Number(form.registration_deadline_minutes)
+      : null,
   };
 }
 
@@ -309,21 +303,35 @@ export default function MarketSettingsPage() {
                   placeholder="30"
                 />
               </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="registration_deadline_minutes">Batas Waktu Pendaftaran Lelang (menit)</Label>
+                <NumberInput
+                  id="registration_deadline_minutes"
+                  value={form.registration_deadline_minutes}
+                  onChange={(raw) => updateField('registration_deadline_minutes', raw)}
+                  placeholder="Kosongkan jika tidak ada batas"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Menit sebelum lelang dimulai, pendaftaran peserta otomatis ditutup. Kosongkan
+                  untuk tidak membatasi.
+                </p>
+              </div>
             </div>
 
-            <DepositTierEditor
-              rows={form.deposit_tiers}
-              onChange={(rows) => updateField('deposit_tiers', rows)}
-            />
-
             <div className="flex justify-end gap-2 pt-2">
-              <Button type="submit" disabled={submitting || !!validateDepositTiers(form.deposit_tiers)}>
+              <Button type="submit" disabled={submitting}>
                 {submitting ? 'Menyimpan…' : isCreating ? 'Buat Market' : 'Simpan Perubahan'}
               </Button>
             </div>
           </form>
         </CardContent>
       </Card>
+
+      {!isCreating && selectedMarket && (
+        <div className="lg:col-start-2">
+          <DepositTierManager marketId={selectedMarket.id} />
+        </div>
+      )}
     </div>
   );
 }
