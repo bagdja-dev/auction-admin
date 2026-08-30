@@ -4,9 +4,9 @@
   "private": true,
   "description": "Admin Console untuk Bagdja Auction Market (Next.js App Router + shadcn/ui)",
   "scripts": {
-    "dev": "next dev -p 5011 --webpack",
-    "build": "next build --webpack",
-    "start": "next start -p 5011",
+    "dev": "node init && next dev -p 5011 --webpack",
+    "build": "node init && next build --webpack",
+    "start": "node init && next start -p 5011",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   },
