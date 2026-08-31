@@ -1,10 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -92,6 +90,7 @@ function buildPayload(form: FormState): CreateMarketPayload {
 }
 
 export default function MarketSettingsPage() {
+  const searchParams = useSearchParams();
   const { markets, activeMarket, isOwner, loading, refresh } = useMarketContext();
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -111,6 +110,15 @@ export default function MarketSettingsPage() {
   // Market yang jadi activeMarket-nya (tidak boleh pilih Market lain).
   useEffect(() => {
     if (loading) return;
+
+    const wantsCreate = searchParams.get('mode') === 'create';
+    if (wantsCreate) {
+      setSelectedId(null);
+      setForm(EMPTY_FORM);
+      setSlugTouched(false);
+      return;
+    }
+
     if (!isOwner) {
       if (activeMarket) {
         setSelectedId(activeMarket.id);
@@ -123,19 +131,7 @@ export default function MarketSettingsPage() {
       setForm(marketToForm(activeMarket));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, isOwner, activeMarket]);
-
-  function startCreate() {
-    setSelectedId(null);
-    setForm(EMPTY_FORM);
-    setSlugTouched(false);
-  }
-
-  function selectMarket(market: Market) {
-    setSelectedId(market.id);
-    setForm(marketToForm(market));
-    setSlugTouched(true);
-  }
+  }, [loading, isOwner, activeMarket, searchParams]);
 
   function updateField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => {
@@ -197,39 +193,7 @@ export default function MarketSettingsPage() {
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
-      {isOwner && (
-        <Card className="h-fit">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-base">Daftar Market</CardTitle>
-            <Button size="icon" variant="outline" onClick={startCreate} aria-label="Tambah Market">
-              <Plus className="h-4 w-4" />
-            </Button>
-          </CardHeader>
-          <CardContent className="space-y-1">
-            {markets.length === 0 && (
-              <p className="text-sm text-muted-foreground">Belum ada Market. Klik + untuk membuat.</p>
-            )}
-            {markets.map((market) => (
-              <button
-                key={market.id}
-                onClick={() => selectMarket(market)}
-                className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors ${
-                  selectedId === market.id ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/50'
-                }`}
-              >
-                <span className="truncate">{market.name}</span>
-                {!market.is_active && (
-                  <Badge variant="outline" className="ml-2 shrink-0 text-xs">
-                    Nonaktif
-                  </Badge>
-                )}
-              </button>
-            ))}
-          </CardContent>
-        </Card>
-      )}
-
+    <div>
       <Card>
         <CardHeader>
           <CardTitle>{isCreating ? 'Tambah Market Baru' : `Edit Market — ${form.name || '...'}`}</CardTitle>
@@ -349,7 +313,7 @@ export default function MarketSettingsPage() {
       </Card>
 
       {!isCreating && selectedMarket && (
-        <div className="lg:col-start-2">
+        <div className="pt-6">
           <DepositTierManager marketId={selectedMarket.id} />
         </div>
       )}

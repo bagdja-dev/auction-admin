@@ -1,6 +1,7 @@
 'use client';
 
-import { ChevronDown, Menu } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { ChevronDown, Menu, Plus } from 'lucide-react';
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -21,11 +22,16 @@ interface TopbarProps {
 }
 
 export function Topbar({ onMenuToggle }: TopbarProps) {
+  const router = useRouter();
   const { user } = useAuth();
   const { markets, activeMarket, switchMarket, isOwner } = useMarketContext();
 
   const displayName = user?.username ?? user?.email ?? 'User';
   const initials = displayName.charAt(0).toUpperCase();
+
+  const handleCreateMarket = () => {
+    router.push('/dashboard/market-settings?mode=create');
+  };
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b bg-background/80 px-4 backdrop-blur-md">
@@ -55,6 +61,15 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
               {isOwner ? 'Semua Market (Owner)' : 'Market Anda'}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+            {isOwner && (
+              <>
+                <DropdownMenuItem onSelect={handleCreateMarket} className="flex items-center gap-2">
+                  <Plus className="h-4 w-4" />
+                  <span>Tambah Market</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            )}
             {markets.length === 0 && (
               <div className="px-2 py-1.5 text-sm text-muted-foreground">
                 Belum ada Market.
