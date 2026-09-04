@@ -25,7 +25,7 @@ import { LoadingSpinner } from '@/components/loading-spinner';
 import { useMarketContext } from '@/context/market-context';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { formatIDR } from '@/lib/utils';
-import type { Bid, Product, ProductStatus } from '@/lib/types';
+import type { AuctionRegistration, Bid, Product, ProductStatus } from '@/lib/types';
 
 const COLUMN_COUNT = 6;
 
@@ -67,6 +67,34 @@ function shortId(id: string | null): string {
   return `${id.slice(0, 8)}…`;
 }
 
+const REGISTRATION_STATUS_LABEL: Record<AuctionRegistration['status'], string> = {
+  PENDING_PAYMENT: 'Menunggu Pembayaran',
+  HELD: 'Deposit Tertahan (HELD)',
+  REFUNDED: 'Direfund (Kalah)',
+  FORFEITED: 'Forfeit ke Seller (Telat Lunas)',
+};
+
+function RegistrationStatusBadge({ status }: { status: AuctionRegistration['status'] }) {
+  if (status === 'HELD') {
+    return <Badge className="bg-brand-success text-white">{REGISTRATION_STATUS_LABEL[status]}</Badge>;
+  }
+  if (status === 'REFUNDED') {
+    return <Badge className="bg-brand-info text-white">{REGISTRATION_STATUS_LABEL[status]}</Badge>;
+  }
+  if (status === 'FORFEITED') {
+    return (
+      <Badge variant="outline" className="border-brand-error text-brand-error">
+        {REGISTRATION_STATUS_LABEL[status]}
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="outline" className="border-brand-warning text-brand-warning">
+      {REGISTRATION_STATUS_LABEL[status]}
+    </Badge>
+  );
+}
+
 function formatDateTime(value: string): string {
   return new Date(value).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
 }
@@ -76,20 +104,27 @@ function formatScheduleRange(start: string | null, end: string | null): string {
   return `${start ? formatDateTime(start) : '-'} – ${end ? formatDateTime(end) : '-'}`;
 }
 
-function BidHistoryRow({ marketId, productId }: { marketId: string; productId: string }) {
+function LelangDetailRow({ marketId, productId }: { marketId: string; productId: string }) {
   const [bids, setBids] = useState<Bid[]>([]);
+  const [registrations, setRegistrations] = useState<AuctionRegistration[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    apiClient<Bid[]>(`/api/markets/${marketId}/products/${productId}/bids`)
-      .then((data) => {
-        if (!cancelled) setBids(data);
+    Promise.all([
+      apiClient<Bid[]>(`/api/markets/${marketId}/products/${productId}/bids`),
+      apiClient<AuctionRegistration[]>(`/api/markets/${marketId}/products/${productId}/registrations`),
+    ])
+      .then(([bidsData, registrationsData]) => {
+        if (!cancelled) {
+          setBids(bidsData);
+          setRegistrations(registrationsData);
+        }
       })
       .catch((err) => {
         if (!cancelled) {
-          toast.error(err instanceof ApiError ? err.message : 'Gagal memuat riwayat bid.');
+          toast.error(err instanceof ApiError ? err.message : 'Gagal memuat detail lelang.');
         }
       })
       .finally(() => {
@@ -104,28 +139,64 @@ function BidHistoryRow({ marketId, productId }: { marketId: string; productId: s
     <TableRow>
       <TableCell colSpan={COLUMN_COUNT} className="bg-muted/30 p-4">
         {loading ? (
-          <p className="text-sm text-muted-foreground">Memuat riwayat bid…</p>
-        ) : bids.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Belum ada bid untuk produk ini.</p>
+          <p className="text-sm text-muted-foreground">Memuat detail lelang…</p>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Waktu</TableHead>
-                <TableHead>Bidder</TableHead>
-                <TableHead>Nominal</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {bids.map((bid) => (
-                <TableRow key={bid.id}>
-                  <TableCell>{formatDateTime(bid.created_at)}</TableCell>
-                  <TableCell className="font-mono text-xs">{shortId(bid.bidder_user_id)}</TableCell>
-                  <TableCell>{formatIDR(bid.amount)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <div className="space-y-6">
+            <div>
+              <p className="mb-2 text-sm font-medium">Riwayat Bid</p>
+              {bids.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Belum ada bid untuk produk ini.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Waktu</TableHead>
+                      <TableHead>Bidder</TableHead>
+                      <TableHead>Nominal</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {bids.map((bid) => (
+                      <TableRow key={bid.id}>
+                        <TableCell>{formatDateTime(bid.created_at)}</TableCell>
+                        <TableCell className="font-mono text-xs">{shortId(bid.bidder_user_id)}</TableCell>
+                        <TableCell>{formatIDR(bid.amount)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+            <div>
+              <p className="mb-2 text-sm font-medium">Peserta & Status Deposit</p>
+              {registrations.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Belum ada peserta terdaftar untuk produk ini.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Terdaftar</TableHead>
+                      <TableHead>Peserta</TableHead>
+                      <TableHead>Deposit</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {registrations.map((registration) => (
+                      <TableRow key={registration.id}>
+                        <TableCell>{formatDateTime(registration.created_at)}</TableCell>
+                        <TableCell className="font-mono text-xs">{shortId(registration.buyer_user_id)}</TableCell>
+                        <TableCell>{formatIDR(registration.deposit_amount)}</TableCell>
+                        <TableCell>
+                          <RegistrationStatusBadge status={registration.status} />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+          </div>
         )}
       </TableCell>
     </TableRow>
@@ -162,7 +233,7 @@ function LelangTable({ marketId }: { marketId: string }) {
         <div>
           <CardTitle>Daftar Lelang</CardTitle>
           <CardDescription>
-            Semua produk mode lelang di Market ini. Klik baris untuk lihat riwayat bid.
+            Semua produk mode lelang di Market ini. Klik baris untuk lihat riwayat bid & status deposit peserta.
           </CardDescription>
         </div>
         <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as ProductStatus | 'all')}>
@@ -221,7 +292,7 @@ function LelangTable({ marketId }: { marketId: string }) {
                       </TableCell>
                       <TableCell className="font-mono text-xs">{shortId(product.highest_bidder_id)}</TableCell>
                     </TableRow>
-                    {isExpanded && <BidHistoryRow marketId={marketId} productId={product.id} />}
+                    {isExpanded && <LelangDetailRow marketId={marketId} productId={product.id} />}
                   </Fragment>
                 );
               })}

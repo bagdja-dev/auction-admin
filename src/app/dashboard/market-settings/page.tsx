@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { DepositTierManager } from '@/components/deposit-tier-manager';
+import { MasterFlowManager } from '@/components/master-flow-manager';
 import { NumberInput } from '@/components/number-input';
 import { LoadingSpinner } from '@/components/loading-spinner';
 import { useMarketContext } from '@/context/market-context';
@@ -30,6 +31,7 @@ interface FormState {
   max_listing_days: string;
   registration_deadline_minutes: string;
   deposit_rounding_multiple: string;
+  final_release_guaranty_days: string;
 }
 
 /**
@@ -52,6 +54,7 @@ const EMPTY_FORM: FormState = {
   max_listing_days: '',
   registration_deadline_minutes: '',
   deposit_rounding_multiple: '',
+  final_release_guaranty_days: '',
 };
 
 function marketToForm(market: Market): FormState {
@@ -66,6 +69,7 @@ function marketToForm(market: Market): FormState {
       market.registration_deadline_minutes != null ? String(market.registration_deadline_minutes) : '',
     deposit_rounding_multiple:
       market.deposit_rounding_multiple != null ? String(market.deposit_rounding_multiple) : '',
+    final_release_guaranty_days: String(market.final_release_guaranty_days ?? 3),
   };
 }
 
@@ -86,6 +90,9 @@ function buildPayload(form: FormState): CreateMarketPayload {
     deposit_rounding_multiple: form.deposit_rounding_multiple.trim()
       ? Number(form.deposit_rounding_multiple)
       : null,
+    final_release_guaranty_days: form.final_release_guaranty_days.trim()
+      ? Number(form.final_release_guaranty_days)
+      : undefined,
   };
 }
 
@@ -301,6 +308,20 @@ export default function MarketSettingsPage() {
                   ini (mis. 10.000). Kosongkan untuk tidak dibulatkan.
                 </p>
               </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="final_release_guaranty_days">Masa Garansi Konfirmasi Terima (hari)</Label>
+                <NumberInput
+                  id="final_release_guaranty_days"
+                  value={form.final_release_guaranty_days}
+                  onChange={(raw) => updateField('final_release_guaranty_days', raw)}
+                  placeholder="3"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Kalau buyer tidak klik &ldquo;Konfirmasi Terima Barang&rdquo; dalam masa ini
+                  (dihitung sejak semua step Master Flow selesai, atau sejak lunas kalau Market ini
+                  tidak punya Master Flow), sisa dana otomatis dirilis ke seller.
+                </p>
+              </div>
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
@@ -313,8 +334,9 @@ export default function MarketSettingsPage() {
       </Card>
 
       {!isCreating && selectedMarket && (
-        <div className="pt-6">
+        <div className="space-y-6 pt-6">
           <DepositTierManager marketId={selectedMarket.id} />
+          <MasterFlowManager marketId={selectedMarket.id} />
         </div>
       )}
     </div>
