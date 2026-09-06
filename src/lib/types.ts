@@ -28,6 +28,8 @@ export interface Market {
   min_description_length: number;
   /** Batas maksimum panjang teks description produk saat publish. `null` = tidak ada batas. */
   max_description_length: number | null;
+  /** Waktu domain kustom lolos verifikasi TXT record. `null` = belum diverifikasi (domain tidak resolve di renderer publik). */
+  domain_verified_at: string | null;
   created_at: string;
   updated_at: string;
 }

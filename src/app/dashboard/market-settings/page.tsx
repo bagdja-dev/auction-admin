@@ -22,6 +22,12 @@ import { useMarketContext } from '@/context/market-context';
 import { ApiError, apiClient, slugify } from '@/lib/api-client';
 import type { CreateMarketPayload, Market } from '@/lib/types';
 
+interface DomainVerificationInfo {
+  recordName: string;
+  recordValue: string;
+  dnsTarget: { recordType: string; recordName: string; recordValue: string };
+}
+
 interface FormState {
   slug: string;
   name: string;
@@ -127,12 +133,25 @@ export default function MarketSettingsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [slugTouched, setSlugTouched] = useState(false);
 
+  const [verifyingDomain, setVerifyingDomain] = useState(false);
+  const [checkingDomain, setCheckingDomain] = useState(false);
+  const [removingDomain, setRemovingDomain] = useState(false);
+  const [domainVerifyInfo, setDomainVerifyInfo] = useState<DomainVerificationInfo | null>(null);
+  const [domainMessage, setDomainMessage] = useState<string | null>(null);
+  const [domainError, setDomainError] = useState<string | null>(null);
+
   const isCreating = isOwner && selectedId === null;
 
   const selectedMarket = useMemo(
     () => markets.find((m) => m.id === selectedId) ?? null,
     [markets, selectedId],
   );
+
+  // Domain di form belum tentu domain yang sudah tersimpan (mis. user baru
+  // ketik tapi belum klik "Simpan Perubahan") — verifikasi harus menargetkan
+  // domain yang SUDAH persisted di `selectedMarket`, bukan draft form.
+  const savedDomain = selectedMarket?.domain ?? '';
+  const domainDirty = form.domain.trim() !== savedDomain;
 
   // Inisialisasi: Owner mulai dari list (belum ada yang dipilih, kecuali
   // sudah ada activeMarket dari switcher). Staff langsung diarahkan ke
@@ -166,6 +185,14 @@ export default function MarketSettingsPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, isOwner, activeMarket, searchParams]);
+
+  // Ganti Market yang diedit -> instruksi verifikasi domain Market
+  // sebelumnya tidak relevan lagi, jangan biarkan nyangkut di layar.
+  useEffect(() => {
+    setDomainVerifyInfo(null);
+    setDomainMessage(null);
+    setDomainError(null);
+  }, [selectedId]);
 
   function updateField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => {
@@ -206,6 +233,61 @@ export default function MarketSettingsPage() {
       }
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleVerifyDomain() {
+    if (!selectedMarket) return;
+    setVerifyingDomain(true);
+    setDomainError(null);
+    setDomainMessage(null);
+    try {
+      const info = await apiClient<DomainVerificationInfo>(
+        `/api/markets/${selectedMarket.id}/domain/verify`,
+        { method: 'POST' },
+      );
+      setDomainVerifyInfo(info);
+    } catch (err) {
+      setDomainError(err instanceof ApiError ? err.message : 'Gagal memulai verifikasi domain.');
+    } finally {
+      setVerifyingDomain(false);
+    }
+  }
+
+  async function handleCheckDomain() {
+    if (!selectedMarket) return;
+    setCheckingDomain(true);
+    setDomainError(null);
+    setDomainMessage(null);
+    try {
+      await apiClient(`/api/markets/${selectedMarket.id}/domain/check`, { method: 'POST' });
+      setDomainMessage('Domain berhasil diverifikasi.');
+      await refresh();
+    } catch (err) {
+      setDomainError(err instanceof ApiError ? err.message : 'Gagal memeriksa status verifikasi.');
+    } finally {
+      setCheckingDomain(false);
+    }
+  }
+
+  async function handleRemoveDomain() {
+    if (!selectedMarket) return;
+    if (!window.confirm('Hapus domain kustom Market ini? Verifikasi yang sudah ada juga akan direset.')) {
+      return;
+    }
+    setRemovingDomain(true);
+    setDomainError(null);
+    setDomainMessage(null);
+    try {
+      await apiClient(`/api/markets/${selectedMarket.id}/domain`, { method: 'DELETE' });
+      setDomainVerifyInfo(null);
+      updateField('domain', '');
+      await refresh();
+      toast.success('Domain kustom berhasil dihapus.');
+    } catch (err) {
+      setDomainError(err instanceof ApiError ? err.message : 'Gagal menghapus domain.');
+    } finally {
+      setRemovingDomain(false);
     }
   }
 
@@ -274,8 +356,12 @@ export default function MarketSettingsPage() {
                   id="domain"
                   value={form.domain}
                   onChange={(e) => updateField('domain', e.target.value)}
-                  placeholder="antik-nusantara.market.bagdja.com"
+                  placeholder="antik-nusantara.com"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Domain milik Anda sendiri. Simpan dulu di sini, lalu verifikasi kepemilikannya di
+                  bagian bawah halaman ini.
+                </p>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="template_id">Template Renderer</Label>
@@ -423,6 +509,102 @@ export default function MarketSettingsPage() {
           </form>
         </CardContent>
       </Card>
+
+      {!isCreating && selectedMarket && savedDomain && (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle>Verifikasi Domain Kustom</CardTitle>
+            <CardDescription>
+              Domain kustom Anda sendiri (bukan subdomain bagdja) — TLS/HTTPS untuk domain ini menjadi
+              tanggung jawab Anda lewat akun Cloudflare Anda sendiri, bukan diurus dari sisi kami.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {domainDirty ? (
+              <p className="text-sm text-amber-600">
+                Domain di form belum disimpan. Klik &ldquo;Simpan Perubahan&rdquo; di atas dulu sebelum
+                memverifikasi <strong>{form.domain.trim() || savedDomain}</strong>.
+              </p>
+            ) : (
+              <p className="text-sm">
+                Status: {selectedMarket.domain_verified_at ? (
+                  <span className="font-medium text-emerald-600">
+                    Terverifikasi ✓ sejak {new Date(selectedMarket.domain_verified_at).toLocaleString('id-ID')}
+                  </span>
+                ) : (
+                  <span className="font-medium text-amber-600">Belum diverifikasi</span>
+                )}
+              </p>
+            )}
+
+            {domainMessage && <p className="text-sm text-emerald-600">{domainMessage}</p>}
+            {domainError && <p className="text-sm text-destructive">{domainError}</p>}
+
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={domainDirty || verifyingDomain}
+                onClick={handleVerifyDomain}
+              >
+                {verifyingDomain
+                  ? 'Memuat…'
+                  : selectedMarket.domain_verified_at
+                    ? 'Verifikasi Ulang'
+                    : 'Verifikasi Domain'}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={domainDirty || checkingDomain}
+                onClick={handleCheckDomain}
+              >
+                {checkingDomain ? 'Memeriksa…' : 'Cek Status'}
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={removingDomain}
+                onClick={handleRemoveDomain}
+              >
+                {removingDomain ? 'Menghapus…' : 'Hapus Domain'}
+              </Button>
+            </div>
+
+            {domainVerifyInfo && (
+              <div className="space-y-3 rounded-md border bg-muted/30 p-4 text-sm">
+                <div>
+                  <p className="font-medium">1. Tambahkan TXT record ini di penyedia DNS Anda (bukti kepemilikan):</p>
+                  <p className="mt-1 font-mono text-xs break-all">
+                    Nama: {domainVerifyInfo.recordName}
+                    <br />
+                    Nilai: {domainVerifyInfo.recordValue}
+                  </p>
+                </div>
+                <div>
+                  <p className="font-medium">2. Arahkan domain ke platform kami:</p>
+                  <p className="mt-1 font-mono text-xs break-all">
+                    {domainVerifyInfo.dnsTarget.recordType} record — {domainVerifyInfo.dnsTarget.recordName} →{' '}
+                    {domainVerifyInfo.dnsTarget.recordValue || '(hubungi kami untuk nilai ini)'}
+                  </p>
+                </div>
+                <div>
+                  <p className="font-medium">3. Aktifkan HTTPS lewat Cloudflare Anda sendiri:</p>
+                  <p className="mt-1 text-muted-foreground">
+                    Daftarkan domain ini di akun Cloudflare Anda, aktifkan proxy (awan oranye), lalu set
+                    mode SSL/TLS ke &ldquo;Full&rdquo;. Cloudflare akan otomatis mengurus sertifikat HTTPS
+                    untuk pengunjung Anda — bukan tanggung jawab kami.
+                  </p>
+                </div>
+                <p className="text-muted-foreground">
+                  Setelah TXT record ditambahkan (bisa perlu beberapa menit untuk propagasi), klik
+                  &ldquo;Cek Status&rdquo; di atas.
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {!isCreating && selectedMarket && (
         <div className="space-y-6 pt-6">
