@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { Check, Copy, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -124,6 +125,52 @@ function buildPayload(form: FormState): CreateMarketPayload {
   };
 }
 
+/** Satu baris tabel DNS record (mis. TXT/A) — pola tampilan mirip panel "Domains" Vercel, dengan tombol salin per baris. */
+function DomainRecordRow({
+  type,
+  name,
+  value,
+  placeholder,
+  fieldKey,
+  copiedField,
+  onCopy,
+  last = false,
+}: {
+  type: string;
+  name: string;
+  value: string;
+  placeholder?: string;
+  fieldKey: string;
+  copiedField: string | null;
+  onCopy: (field: string, value: string) => void;
+  last?: boolean;
+}) {
+  const isEmpty = !value;
+  const copied = copiedField === fieldKey;
+
+  return (
+    <tr className={last ? '' : 'border-b'}>
+      <td className="px-3 py-2 align-top font-mono text-xs">{type}</td>
+      <td className="px-3 py-2 align-top font-mono text-xs break-all">{name}</td>
+      <td className={`px-3 py-2 align-top font-mono text-xs break-all ${isEmpty ? 'text-muted-foreground' : ''}`}>
+        {isEmpty ? (placeholder ?? '—') : value}
+      </td>
+      <td className="px-3 py-2 align-top">
+        {!isEmpty && (
+          <button
+            type="button"
+            onClick={() => onCopy(fieldKey, value)}
+            className="text-muted-foreground hover:text-foreground"
+            aria-label="Salin nilai"
+          >
+            {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+          </button>
+        )}
+      </td>
+    </tr>
+  );
+}
+
 export default function MarketSettingsPage() {
   const searchParams = useSearchParams();
   const { markets, activeMarket, isOwner, loading, refresh } = useMarketContext();
@@ -139,6 +186,7 @@ export default function MarketSettingsPage() {
   const [domainVerifyInfo, setDomainVerifyInfo] = useState<DomainVerificationInfo | null>(null);
   const [domainMessage, setDomainMessage] = useState<string | null>(null);
   const [domainError, setDomainError] = useState<string | null>(null);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
 
   const isCreating = isOwner && selectedId === null;
 
@@ -288,6 +336,28 @@ export default function MarketSettingsPage() {
       setDomainError(err instanceof ApiError ? err.message : 'Gagal menghapus domain.');
     } finally {
       setRemovingDomain(false);
+    }
+  }
+
+  // Auto-tampilkan record DNS begitu domain tersimpan & belum terverifikasi
+  // — pola sama Vercel (langsung tampil record begitu domain ditambahkan,
+  // bukan nunggu user klik tombol "Verify" dulu). Idempotent di sisi backend
+  // (reuse token lama), jadi aman dipanggil ulang tiap kali efek ini jalan.
+  useEffect(() => {
+    if (domainDirty || !savedDomain || !selectedMarket || selectedMarket.domain_verified_at) return;
+    if (domainVerifyInfo || verifyingDomain) return;
+    void handleVerifyDomain();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [domainDirty, savedDomain, selectedMarket, domainVerifyInfo, verifyingDomain]);
+
+  async function handleCopy(field: string, value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedField(field);
+      setTimeout(() => setCopiedField((prev) => (prev === field ? null : prev)), 1500);
+    } catch {
+      // Clipboard API bisa gagal (context tidak secure/permission ditolak) —
+      // non-kritikal, user masih bisa select-and-copy manual dari tabel.
     }
   }
 
@@ -513,94 +583,116 @@ export default function MarketSettingsPage() {
       {!isCreating && selectedMarket && savedDomain && (
         <Card className="mt-6">
           <CardHeader>
-            <CardTitle>Verifikasi Domain Kustom</CardTitle>
+            <div className="flex flex-wrap items-center gap-2">
+              <CardTitle className="mr-1">{savedDomain}</CardTitle>
+              {selectedMarket.domain_verified_at ? (
+                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                  Terverifikasi
+                </span>
+              ) : (
+                <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+                  Verifikasi Diperlukan
+                </span>
+              )}
+              <div className="ml-auto flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={domainDirty || checkingDomain}
+                  onClick={handleCheckDomain}
+                >
+                  <RefreshCw className={`mr-1 h-4 w-4 ${checkingDomain ? 'animate-spin' : ''}`} />
+                  {checkingDomain ? 'Memeriksa…' : 'Refresh'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  disabled={removingDomain}
+                  onClick={handleRemoveDomain}
+                >
+                  {removingDomain ? 'Menghapus…' : 'Hapus'}
+                </Button>
+              </div>
+            </div>
             <CardDescription>
-              Domain kustom Anda sendiri (bukan subdomain bagdja) — TLS/HTTPS untuk domain ini menjadi
-              tanggung jawab Anda lewat akun Cloudflare Anda sendiri, bukan diurus dari sisi kami.
+              {selectedMarket.domain_verified_at
+                ? `Terverifikasi sejak ${new Date(selectedMarket.domain_verified_at).toLocaleString('id-ID')}. TLS/HTTPS domain ini tetap tanggung jawab Anda lewat akun Cloudflare sendiri.`
+                : 'Perbarui DNS record di penyedia domain Anda agar sesuai dengan yang tercantum di bawah. Ini memverifikasi kepemilikan domain sekaligus mengarahkannya ke platform kami.'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {domainDirty ? (
+            {domainDirty && (
               <p className="text-sm text-amber-600">
-                Domain di form belum disimpan. Klik &ldquo;Simpan Perubahan&rdquo; di atas dulu sebelum
+                Domain di form belum disimpan. Klik &ldquo;Simpan Perubahan&rdquo; di atas dulu untuk
                 memverifikasi <strong>{form.domain.trim() || savedDomain}</strong>.
-              </p>
-            ) : (
-              <p className="text-sm">
-                Status: {selectedMarket.domain_verified_at ? (
-                  <span className="font-medium text-emerald-600">
-                    Terverifikasi ✓ sejak {new Date(selectedMarket.domain_verified_at).toLocaleString('id-ID')}
-                  </span>
-                ) : (
-                  <span className="font-medium text-amber-600">Belum diverifikasi</span>
-                )}
               </p>
             )}
 
             {domainMessage && <p className="text-sm text-emerald-600">{domainMessage}</p>}
-            {domainError && <p className="text-sm text-destructive">{domainError}</p>}
+            {domainError && (
+              <p className="text-sm text-destructive">
+                {domainError}{' '}
+                {!domainVerifyInfo && (
+                  <button type="button" onClick={handleVerifyDomain} className="underline">
+                    Coba lagi
+                  </button>
+                )}
+              </p>
+            )}
 
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={domainDirty || verifyingDomain}
-                onClick={handleVerifyDomain}
-              >
-                {verifyingDomain
-                  ? 'Memuat…'
-                  : selectedMarket.domain_verified_at
-                    ? 'Verifikasi Ulang'
-                    : 'Verifikasi Domain'}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={domainDirty || checkingDomain}
-                onClick={handleCheckDomain}
-              >
-                {checkingDomain ? 'Memeriksa…' : 'Cek Status'}
-              </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                disabled={removingDomain}
-                onClick={handleRemoveDomain}
-              >
-                {removingDomain ? 'Menghapus…' : 'Hapus Domain'}
-              </Button>
-            </div>
+            {verifyingDomain && !domainVerifyInfo && (
+              <p className="text-sm text-muted-foreground">Memuat record DNS…</p>
+            )}
 
             {domainVerifyInfo && (
-              <div className="space-y-3 rounded-md border bg-muted/30 p-4 text-sm">
-                <div>
-                  <p className="font-medium">1. Tambahkan TXT record ini di penyedia DNS Anda (bukti kepemilikan):</p>
-                  <p className="mt-1 font-mono text-xs break-all">
-                    Nama: {domainVerifyInfo.recordName}
-                    <br />
-                    Nilai: {domainVerifyInfo.recordValue}
-                  </p>
+              <>
+                <div className="overflow-x-auto rounded-md border">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
+                        <th className="px-3 py-2 font-medium">Tipe</th>
+                        <th className="px-3 py-2 font-medium">Nama</th>
+                        <th className="px-3 py-2 font-medium">Nilai</th>
+                        <th className="px-3 py-2 font-medium" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <DomainRecordRow
+                        type="TXT"
+                        name={domainVerifyInfo.recordName}
+                        value={domainVerifyInfo.recordValue}
+                        fieldKey="txt"
+                        copiedField={copiedField}
+                        onCopy={handleCopy}
+                      />
+                      <DomainRecordRow
+                        type={domainVerifyInfo.dnsTarget.recordType}
+                        name={domainVerifyInfo.dnsTarget.recordName}
+                        value={domainVerifyInfo.dnsTarget.recordValue}
+                        placeholder="(gagal deteksi otomatis — muat ulang halaman ini untuk coba lagi)"
+                        fieldKey="a"
+                        copiedField={copiedField}
+                        onCopy={handleCopy}
+                        last
+                      />
+                    </tbody>
+                  </table>
                 </div>
-                <div>
-                  <p className="font-medium">2. Arahkan domain ke platform kami:</p>
-                  <p className="mt-1 font-mono text-xs break-all">
-                    {domainVerifyInfo.dnsTarget.recordType} record — {domainVerifyInfo.dnsTarget.recordName} →{' '}
-                    {domainVerifyInfo.dnsTarget.recordValue || '(hubungi kami untuk nilai ini)'}
-                  </p>
-                </div>
-                <div>
-                  <p className="font-medium">3. Aktifkan HTTPS lewat Cloudflare Anda sendiri:</p>
+                <p className="text-xs text-muted-foreground">
+                  Perubahan DNS bisa perlu beberapa menit untuk propagasi. Klik &ldquo;Refresh&rdquo; di
+                  atas untuk cek ulang setelah menambahkan record.
+                </p>
+                <div className="rounded-md border bg-muted/30 p-3 text-sm">
+                  <p className="font-medium">Aktifkan HTTPS lewat Cloudflare Anda sendiri</p>
                   <p className="mt-1 text-muted-foreground">
                     Daftarkan domain ini di akun Cloudflare Anda, aktifkan proxy (awan oranye), lalu set
                     mode SSL/TLS ke &ldquo;Full&rdquo;. Cloudflare akan otomatis mengurus sertifikat HTTPS
                     untuk pengunjung Anda — bukan tanggung jawab kami.
                   </p>
                 </div>
-                <p className="text-muted-foreground">
-                  Setelah TXT record ditambahkan (bisa perlu beberapa menit untuk propagasi), klik
-                  &ldquo;Cek Status&rdquo; di atas.
-                </p>
-              </div>
+              </>
             )}
           </CardContent>
         </Card>
