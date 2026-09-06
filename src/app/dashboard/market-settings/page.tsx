@@ -130,12 +130,17 @@ export default function MarketSettingsPage() {
       if (activeMarket) {
         setSelectedId(activeMarket.id);
         setForm(marketToForm(activeMarket));
+        // Market SUDAH ADA — slug-nya final (mungkin sudah dipakai subdomain
+        // hidup), jangan biarkan auto-slugify dari Nama diam-diam
+        // menimpanya kalau user cuma bermaksud edit Nama.
+        setSlugTouched(true);
       }
       return;
     }
     if (selectedId === null && activeMarket) {
       setSelectedId(activeMarket.id);
       setForm(marketToForm(activeMarket));
+      setSlugTouched(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, isOwner, activeMarket, searchParams]);
@@ -207,7 +212,7 @@ export default function MarketSettingsPage() {
           <CardDescription>
             {isCreating
               ? 'Isi detail Market baru. Slug dipakai untuk subdomain/URL publik.'
-              : 'Perbarui pengaturan Market ini.'}
+              : 'Perbarui pengaturan Market ini. Slug bisa diubah manual, tapi hati-hati — itu mengubah subdomain publik yang sedang aktif.'}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -234,8 +239,12 @@ export default function MarketSettingsPage() {
                   }}
                   placeholder="antik-nusantara"
                   required
-                  disabled={!isCreating}
                 />
+                {!isCreating && (
+                  <p className="text-xs text-amber-600">
+                    Mengubah slug langsung mengubah subdomain publik Market ini — link/bookmark lama ke subdomain sebelumnya akan berhenti berfungsi.
+                  </p>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="domain">Domain Kustom</Label>
