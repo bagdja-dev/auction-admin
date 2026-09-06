@@ -32,6 +32,10 @@ interface FormState {
   registration_deadline_minutes: string;
   deposit_rounding_multiple: string;
   final_release_guaranty_days: string;
+  requires_registration: boolean;
+  requires_scheduled_start: boolean;
+  min_description_length: string;
+  max_description_length: string;
 }
 
 /**
@@ -55,6 +59,10 @@ const EMPTY_FORM: FormState = {
   registration_deadline_minutes: '',
   deposit_rounding_multiple: '',
   final_release_guaranty_days: '',
+  requires_registration: true,
+  requires_scheduled_start: true,
+  min_description_length: '0',
+  max_description_length: '',
 };
 
 function marketToForm(market: Market): FormState {
@@ -70,6 +78,11 @@ function marketToForm(market: Market): FormState {
     deposit_rounding_multiple:
       market.deposit_rounding_multiple != null ? String(market.deposit_rounding_multiple) : '',
     final_release_guaranty_days: String(market.final_release_guaranty_days ?? 3),
+    requires_registration: market.requires_registration ?? true,
+    requires_scheduled_start: market.requires_scheduled_start ?? true,
+    min_description_length: String(market.min_description_length ?? 0),
+    max_description_length:
+      market.max_description_length != null ? String(market.max_description_length) : '',
   };
 }
 
@@ -93,6 +106,15 @@ function buildPayload(form: FormState): CreateMarketPayload {
     final_release_guaranty_days: form.final_release_guaranty_days.trim()
       ? Number(form.final_release_guaranty_days)
       : undefined,
+    requires_registration: form.requires_registration,
+    requires_scheduled_start: form.requires_scheduled_start,
+    // Selalu dikirim sebagai angka (bukan undefined) — 0 itu sendiri nilai
+    // valid ("tidak ada batas minimum"), beda dari "biarkan tidak berubah".
+    min_description_length: form.min_description_length.trim() ? Number(form.min_description_length) : 0,
+    // null eksplisit saat kosong — pola sama deposit_rounding_multiple.
+    max_description_length: form.max_description_length.trim()
+      ? Number(form.max_description_length)
+      : null,
   };
 }
 
@@ -331,6 +353,66 @@ export default function MarketSettingsPage() {
                   tidak punya Master Flow), sisa dana otomatis dirilis ke seller.
                 </p>
               </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="min_description_length">Batas Minimum Deskripsi Produk (karakter)</Label>
+                <NumberInput
+                  id="min_description_length"
+                  value={form.min_description_length}
+                  onChange={(raw) => updateField('min_description_length', raw)}
+                  placeholder="0"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Panjang teks minimum (tanpa HTML) yang wajib diisi seller sebelum bisa publish
+                  produk. Isi 0 untuk tidak membatasi.
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="max_description_length">Batas Maksimum Deskripsi Produk (karakter)</Label>
+                <NumberInput
+                  id="max_description_length"
+                  value={form.max_description_length}
+                  onChange={(raw) => updateField('max_description_length', raw)}
+                  placeholder="Kosongkan jika tidak ada batas"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Panjang teks maksimum yang boleh diisi seller. Kosongkan untuk tidak membatasi.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3 border-t pt-4">
+              <div className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  id="requires_registration"
+                  checked={form.requires_registration}
+                  onChange={(e) => updateField('requires_registration', e.target.checked)}
+                  className="mt-1"
+                />
+                <div>
+                  <Label htmlFor="requires_registration">Wajibkan Registrasi &amp; Deposit</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Nonaktifkan supaya buyer bisa langsung menawar tanpa registrasi/deposit di depan —
+                    alamat kirim pemenang dikumpulkan saat pelunasan.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  id="requires_scheduled_start"
+                  checked={form.requires_scheduled_start}
+                  onChange={(e) => updateField('requires_scheduled_start', e.target.checked)}
+                  className="mt-1"
+                />
+                <div>
+                  <Label htmlFor="requires_scheduled_start">Wajibkan Jadwal Mulai Lelang</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Nonaktifkan supaya seller boleh publish tanpa mengisi tanggal mulai — lelang
+                    langsung buka begitu dipublish (tanggal tutup tetap wajib).
+                  </p>
+                </div>
+              </div>
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
@@ -344,7 +426,7 @@ export default function MarketSettingsPage() {
 
       {!isCreating && selectedMarket && (
         <div className="space-y-6 pt-6">
-          <DepositTierManager marketId={selectedMarket.id} />
+          {form.requires_registration && <DepositTierManager marketId={selectedMarket.id} />}
           <MasterFlowManager marketId={selectedMarket.id} />
         </div>
       )}

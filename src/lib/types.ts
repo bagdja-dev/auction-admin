@@ -20,6 +20,14 @@ export interface Market {
   /** Masa garansi (hari) sebelum "Konfirmasi Terima Barang" di-auto-release kalau buyer tidak pernah klik (Fase 5). */
   final_release_guaranty_days: number;
   is_active: boolean;
+  /** `false` = buyer bisa langsung bid tanpa registrasi/deposit di depan (default true). */
+  requires_registration: boolean;
+  /** `false` = auction_start_at opsional saat publish, lelang langsung buka begitu di-publish (default true). */
+  requires_scheduled_start: boolean;
+  /** Batas minimum panjang teks description produk saat publish. 0 = tidak ada batas. */
+  min_description_length: number;
+  /** Batas maksimum panjang teks description produk saat publish. `null` = tidak ada batas. */
+  max_description_length: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -60,9 +68,22 @@ export interface CreateMarketPayload {
   deposit_rounding_multiple?: number | null;
   /** Masa garansi (hari) sebelum "Konfirmasi Terima Barang" di-auto-release kalau buyer tidak pernah klik. */
   final_release_guaranty_days?: number;
+  /** `false` = buyer bisa langsung bid tanpa registrasi/deposit di depan (default true). */
+  requires_registration?: boolean;
+  /** `false` = auction_start_at opsional saat publish (default true). */
+  requires_scheduled_start?: boolean;
+  /** Batas minimum panjang teks description produk saat publish. 0 = tidak ada batas. */
+  min_description_length?: number;
+  /** Batas maksimum panjang teks description produk saat publish. Kirim null untuk menghapus (tidak ada batas). */
+  max_description_length?: number | null;
 }
 
 export type UpdateMarketPayload = Partial<CreateMarketPayload>;
+
+export interface SellerAdditionalFee {
+  label: string;
+  amount: number;
+}
 
 export interface Seller {
   id: string;
@@ -70,6 +91,10 @@ export interface Seller {
   user_id: string;
   shop_name: string | null;
   email: string | null;
+  address: string | null;
+  shipping_area_id: string | null;
+  shipping_area_name: string | null;
+  additional_fees: SellerAdditionalFee[] | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
